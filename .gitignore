@@ -10,3 +10,4 @@ cdk.out
 .env.*
 !.env.example
 .superpowers/
+.context/
