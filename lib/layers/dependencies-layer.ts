@@ -7,7 +7,7 @@ import { Construct } from 'constructs';
 import { LocalBundler } from './local-bundler.js';
 
 export interface DependenciesLayerProps {
-  /** package.json と package-lock.json があるディレクトリ */
+  /** package.json と package-lock.json があるディレクトリ（リポのルート） */
   readonly sourceDir: string;
   readonly layerVersionName: string;
 }
@@ -38,7 +38,7 @@ export class DependenciesLayer extends Construct {
       compatibleArchitectures: [lambda.Architecture.ARM_64],
       removalPolicy: RemovalPolicy.DESTROY,
       code: lambda.Code.fromAsset(sourceDir, {
-        exclude: ['.*', 'node_modules'],
+        exclude: ['.*', 'node_modules', 'cdk.out'],
         assetHashType: AssetHashType.CUSTOM,
         assetHash,
         bundling: {

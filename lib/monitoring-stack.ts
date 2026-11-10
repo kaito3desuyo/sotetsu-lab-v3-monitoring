@@ -35,7 +35,7 @@ export class MonitoringStack extends Stack {
 
     // AWS SDK はランタイム同梱が最新と限らないため、レイヤーで渡して external にする
     const deps = new DependenciesLayer(this, 'Dependencies', {
-      sourceDir: join(import.meta.dirname, '..', 'src', 'functions'),
+      sourceDir: join(import.meta.dirname, '..'),
       layerVersionName: names.dependenciesLayer,
     });
 

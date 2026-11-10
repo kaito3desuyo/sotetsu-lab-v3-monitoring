@@ -12,19 +12,19 @@
     "deploy:prod": "cdk deploy -c STAGE=prod"
   },
   "devDependencies": {
-    "@aws-sdk/client-ssm": "^3.1165.0",
+    "@mrgrain/cdk-esbuild": "^5.8.5",
     "@types/aws-lambda": "^8.10.164",
     "@types/node": "^24.10.1",
     "aws-cdk": "2.1148.0",
+    "aws-cdk-lib": "^2.275.0",
+    "constructs": "^10.5.0",
+    "dotenv": "^18.0.10",
     "esbuild": "^0.28.2",
     "tsx": "^4.23.0",
     "typescript": "~7.0.2",
     "vitest": "^5.1.0"
   },
   "dependencies": {
-    "@mrgrain/cdk-esbuild": "^5.8.5",
-    "aws-cdk-lib": "^2.275.0",
-    "constructs": "^10.5.0",
-    "dotenv": "^18.0.10"
+    "@aws-sdk/client-ssm": "^3.1165.0"
   }
 }
