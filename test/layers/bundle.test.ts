@@ -27,6 +27,7 @@ describe('bundle.sh', () => {
   it('cp の失敗で止まる', () => {
     const result = run({ BUNDLER_OUTPUT_DIR: tempDir(), BUNDLER_ROOT_DIR: tempDir() });
     expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('package-lock.json');
   });
 
   it('BUNDLER_OUTPUT_DIR が無ければ止まる', () => {

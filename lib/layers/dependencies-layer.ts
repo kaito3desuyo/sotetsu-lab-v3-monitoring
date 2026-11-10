@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { RemovalPolicy } from 'aws-cdk-lib';
+import { AssetHashType, RemovalPolicy } from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
 import { LocalBundler } from './local-bundler.js';
@@ -23,6 +24,12 @@ export class DependenciesLayer extends Construct {
     const pkg = JSON.parse(readFileSync(join(sourceDir, 'package.json'), 'utf-8')) as {
       dependencies?: Record<string, string>;
     };
+    // ハッシュは依存の定義だけから取る（同じディレクトリの Lambda のコードを直してもレイヤーを作り直さない）
+    const assetHash = createHash('sha256')
+      .update(readFileSync(join(sourceDir, 'package.json')))
+      .update(readFileSync(join(sourceDir, 'package-lock.json')))
+      .digest('hex');
+
     this.externals = Object.keys(pkg.dependencies ?? {});
 
     this.layer = new lambda.LayerVersion(this, 'Layer', {
@@ -32,6 +39,8 @@ export class DependenciesLayer extends Construct {
       removalPolicy: RemovalPolicy.DESTROY,
       code: lambda.Code.fromAsset(sourceDir, {
         exclude: ['.*', 'node_modules'],
+        assetHashType: AssetHashType.CUSTOM,
+        assetHash,
         bundling: {
           local: new LocalBundler(sourceDir),
           image: lambda.Runtime.NODEJS_24_X.bundlingImage,
