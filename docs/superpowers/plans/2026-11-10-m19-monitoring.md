@@ -4,7 +4,7 @@
 
 **Goal:** CloudWatch アラームの通知を SNS で受け、Discord に 1 通ずつ流す CDK アプリを新しいリポに作る。
 
-**Architecture:** CDK（TypeScript・ESM）のスタック 1 つに、SNS トピック、Discord 転送 Lambda（TS を `@mrgrain/cdk-esbuild` で束ねる）、トピックの ARN を書いた SSM パラメータを置く。各アプリのリポは SSM から ARN を読んでアラームを向ける。Lambda レイヤーの仕組みはコンストラクトだけ作り、本番のスタックにはまだ置かない。
+**Architecture:** CDK（TypeScript・ESM）のスタック 1 つに、SNS トピック、Discord 転送 Lambda（TS を `@mrgrain/cdk-esbuild` で束ねる）、トピックの ARN を書いた SSM パラメータを置く。各アプリのリポは SSM から ARN を読んでアラームを向ける。Lambda レイヤーで AWS SDK を渡す（本番のスタックがレイヤーを 1 つ持つ）。
 
 **Tech Stack:** aws-cdk-lib 2.x / constructs 10.x / @mrgrain/cdk-esbuild 5.x / esbuild / tsx / Vitest / dotenv / Node.js 24（`lambda.Runtime.NODEJS_24_X`・arm64）
 
@@ -52,7 +52,7 @@
 
 - [ ] **Step 1: 土台のファイルを作る**
   - `cdk init app --language typescript` の構成を手で起こす（`cdk init` は空でないディレクトリで動かないため）。`bin/`・`lib/`・`test/`。
-  - 依存: `aws-cdk-lib`・`constructs`・`@mrgrain/cdk-esbuild`・`dotenv`・`@aws-sdk/client-ssm`（2026-11-10 ユーザー決定: Lambda に束ねる。ランタイム同梱の SDK は最新と限らない）。devDependencies: `aws-cdk`（CLI）・`typescript`・`tsx`・`vitest`・`esbuild`・`@types/node`・`@types/aws-lambda`。版は入れた時点の最新。Node の版はほかのリポにそろえて `mise.toml` を置く。
+  - 依存: `aws-cdk-lib`・`constructs`・`@mrgrain/cdk-esbuild`・`dotenv`・`@aws-sdk/client-ssm`（2026-11-10 ユーザー決定: レイヤーで渡す。ランタイム同梱の SDK は最新と限らない。ルートの `devDependencies` に型・テスト用で置き、`src/functions/package.json` の `dependencies` にも同じ範囲で入れる）。devDependencies: `aws-cdk`（CLI）・`typescript`・`tsx`・`vitest`・`esbuild`・`@types/node`・`@types/aws-lambda`。版は入れた時点の最新。Node の版はほかのリポにそろえて `mise.toml` を置く。
   - `cdk.json` の `app` は `npx tsx bin/monitoring.ts`。
   - `.gitignore` に `node_modules`・`cdk.out`・`.env`・`.env.*`・`!.env.example`。
   - `.env.example` の鍵: `ACCOUNT_ID`・`REGION`。`.env.prod` は手元で `ACCOUNT_ID=442730633672`・`REGION=ap-northeast-1` を入れて作る（git に入れない）。
@@ -113,7 +113,7 @@
 - Consumes: `toDiscordPayload`（Task 2）
 - Produces:
   - `function createHandler(deps: { getWebhookUrl: () => Promise<string>; post: typeof fetch }): (event: SNSEvent) => Promise<void>`
-  - `export const handler`（本番用。SDK は束ねる（2026-11-10 ユーザー決定）。`getWebhookUrl` は `@aws-sdk/client-ssm` の `GetParameterCommand`（`WithDecryption: true`）で、名前は環境変数 `WEBHOOK_URL_PARAMETER_NAME`。最初の 1 回だけ読んで、モジュールの変数に持つ。`post` は標準の `fetch`）
+  - `export const handler`（本番用。SDK はレイヤーで渡し external のまま（2026-11-10 ユーザー決定）。`getWebhookUrl` は `@aws-sdk/client-ssm` の `GetParameterCommand`（`WithDecryption: true`）で、名前は環境変数 `WEBHOOK_URL_PARAMETER_NAME`。最初の 1 回だけ読んで、モジュールの変数に持つ。`post` は標準の `fetch`）
 
 - [ ] **Step 1: 落ちるテストを書く**（`getWebhookUrl`・`post` は偽物を渡す）
   - `レコードごとに Webhook に POST する`: 2 レコード → `post` が 2 回、`method: 'POST'`、`content-type: application/json`、本文は `toDiscordPayload` の結果。
@@ -156,7 +156,7 @@
   - KMS の既定鍵で暗号化された SecureString の復号は `ssm:GetParameter` で足りる（AWS 管理鍵のとき）。足りなければ `kms:Decrypt` を足す。
   - `bin/monitoring.ts` で `new MonitoringStack(app, 'sotetsu-lab-v3-prod-monitoring-cfstack', { stackName: …, env: { account, region }, config })`。タグは `System: sotetsu-lab-v3`・`Stage: prod`・`Role: monitoring`（socket の stackTags にそろえる）。
 
-- [ ] **Step 4: 通ることを確かめる** — `npx vitest run` → PASS。`npm run synth:prod` が通り、`cdk.out` の Lambda のアセットに `index.mjs` があり、中に `@aws-sdk` の本体が束ねられている（2026-11-10 ユーザー決定: ランタイム同梱の SDK は最新と限らないため `@aws-sdk/client-ssm` は dependencies に入れて束ねる。`from "@aws-sdk/client-ssm"` の import が残っていない）。ESM の束ねで CJS の `require` が使われるため、`createRequire` の banner を付ける。
+- [ ] **Step 4: 通ることを確かめる** — `npx vitest run` → PASS。`npm run synth:prod` が通り、`cdk.out` の Lambda のアセットに `index.mjs` があり、小さく、`@aws-sdk/client-ssm` の素の import が残っている（external）。レイヤーのアセットに `nodejs/node_modules/@aws-sdk/client-ssm` がある（2026-11-10 ユーザー決定: ランタイム同梱の SDK は最新と限らないためレイヤーで渡す）。
 
 - [ ] **Step 5: コミット** — `feat: :sparkles: SNS と Discord 転送のスタックを作る`
 
@@ -176,7 +176,7 @@
 **Interfaces:**
 - Produces:
   - `class DependenciesLayer extends Construct { readonly layer: lambda.LayerVersion; readonly externals: string[]; constructor(scope: Construct, id: string, props: { sourceDir: string; layerVersionName: string }) }`
-    - `externals` は `sourceDir/package.json` の `dependencies` のキー。依存を持つ Lambda は `buildOptions.external` に `layer.externals`（`@aws-sdk/*` は 2026-11-10 のユーザー決定で束ねるので external にしない） を渡し、`layers: [layer.layer]` を付ける。
+    - `externals` は `sourceDir/package.json` の `dependencies` のキー。依存を持つ Lambda は `buildOptions.external` に `layer.externals`（SDK もレイヤーで渡すので external に含まれる）を渡し、`layers: [layer.layer]` を付ける。
     - `LayerVersion` の中身はユーザーの `#buildLayer()` と同じ形。`compatibleRuntimes: [Runtime.NODEJS_24_X]`・`compatibleArchitectures: [Architecture.ARM_64]`・`removalPolicy: RemovalPolicy.DESTROY`・`code: Code.fromAsset(sourceDir, { exclude: ['.*', 'node_modules'], bundling: { local: new LocalBundler(sourceDir), image: Runtime.NODEJS_24_X.bundlingImage, platform: 'linux/arm64', user: 'root', command: ['bash', '-c', 'mkdir -p /asset-output/nodejs && cp package.json package-lock.json /asset-output/nodejs/ && npm ci --omit=dev --prefix /asset-output/nodejs'] } })`。
   - `class LocalBundler implements ILocalBundling { constructor(private readonly rootDir: string) }` — ユーザーのコードのまま（`execFileSync(resolve(import.meta.dirname, 'bundle.sh'), { env: { ...process.env, BUNDLER_OUTPUT_DIR, BUNDLER_ROOT_DIR }, timeout: 60 秒, encoding: 'utf-8' })`、失敗したら `console.error` して `false`）。
   - `bundle.sh` — ユーザーのスクリプト（`BUNDLER_OUTPUT_DIR`・`BUNDLER_ROOT_DIR` の確かめ → `<出力>/nodejs` を作る → `cd` → `cp package.json package-lock.json` → `npm ci --omit=dev --prefix`）に、直し 2・3 を足す。
@@ -194,7 +194,7 @@
 
 - [ ] **Step 4: 3 つを書く。**
 
-- [ ] **Step 5: 通ることを確かめる** — PASS。`npm run synth:prod` のテンプレートに `AWS::Lambda::LayerVersion` が**無い**（本番のスタックにはまだ置かない）。
+- [ ] **Step 5: 通ることを確かめる** — PASS。`npm run synth:prod` のテンプレートに `AWS::Lambda::LayerVersion` が 1 つあり、転送 Lambda の `Layers` が参照する（2026-11-10 訂正: SDK をレイヤーで渡すため）。
 
 - [ ] **Step 6: ESM から import できるかを実物で確かめる。** 使い捨てのスタック（`test/layers/esm-probe/`・本番のスタックとは別名）に、fixture のレイヤーと、`import ms from 'ms'` して結果を返すだけの ESM の Lambda（`external: ['ms']`）を置いてデプロイし、`aws lambda invoke` で呼ぶ。
   - 通れば、README に「素の名前で import できる」と書く。

@@ -40,7 +40,7 @@
 - ユーザーの希望。以前の CDK でも使っていた。CDK 付属の `NodejsFunction` は使わない。
 - CDK アプリは ESM（`"type": "module"`）。`cdk.json` の `app` は `tsx` で起動する。テンプレートの `ts-node` と jest は、ESM のため `tsx` と Vitest に替えた。
 - 出力は `outfile: 'index.mjs'`、ハンドラは `index.handler`。`.mjs` にして ESM を明示する。
-- AWS SDK（`@aws-sdk/client-ssm`）は `dependencies` に入れて束ねる。ランタイムに同梱の SDK は、最新の版である保証が無いため（2026-11-10 ユーザー決定）。束ねた SDK の中には実行時の `require` が残るので、esbuild の `banner` で `createRequire` を差し込む。束ねた結果は約 1.5 MB。
+- AWS SDK（`@aws-sdk/client-ssm`）は Lambda レイヤーで渡し、束ねでは `external` のままにする。ランタイムに同梱の SDK は、最新の版である保証が無いため、自前の版をレイヤーに入れる（2026-11-10 ユーザー決定。同日、束ねる案から訂正）。Lambda のコードは約 4 KB。
 
 ### 6. Lambda レイヤーの仕組みを土台に入れる
 
@@ -50,8 +50,8 @@
   - `bundle.sh` は `set -euo pipefail`。
   - Node は 24。
 - さらに、アセットのハッシュを `package.json` と `package-lock.json` だけから取る（カスタムハッシュ）。同じディレクトリのコードを直してもレイヤーを作り直さない。
-- 転送 Lambda は依存ゼロなので、本番のスタックにレイヤーは置かない。仕組みとテストだけ入れ、依存を持つ Lambda が初めて来たときに使う。
-- 未確認：ESM の Lambda がレイヤーの依存を素の名前で import できるか。初めて使うときに実物で確かめる。
+- 本番のスタックはこのレイヤーを使う。転送 Lambda の SDK（`@aws-sdk/client-ssm`、`src/functions/package.json` の `dependencies`）をレイヤーで渡す。レイヤー名は `sotetsu-lab-v3-prod-monitoring-dependencies-layer`。
+- 未確認：ESM の Lambda がレイヤーの依存を素の名前で import できるか。初回のデプロイで実物で確かめる。
 
 ### 7. そのほか
 
@@ -71,4 +71,4 @@
 
 - 良い点：アラームが関数の隣にある。monitoring の作り直しがアプリの import に縛られない。stage ごとの値とデプロイの決まりを GitHub の environment で分けられる。
 - 悪い点：デプロイの順番を守る必要がある。転送 Lambda の故障には気づけない。アラームを作る関数が 4 リポに複製される。
-- 残る確認：ESM の Lambda からレイヤーの依存を素の名前で import できるか（上の 6）。
+- 残る確認：ESM の Lambda からレイヤーの依存を素の名前で import できるか（上の 6）。初回のデプロイで確かめる。

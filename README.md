@@ -125,7 +125,7 @@ Discord には ALARM のとき「🔴 障害発生」、OK のとき「🟢 復�
 
 ## Lambda レイヤーの仕組み
 
-依存を持つ Lambda が将来できたときのために、仕組みだけ入れてある。転送 Lambda は依存ゼロなので、**本番のスタックはまだレイヤーを使っていない**。
+本番のスタックは、転送 Lambda が使う AWS SDK（`@aws-sdk/client-ssm`）をこのレイヤーで渡している。ランタイム同梱の SDK は最新と限らないため、自前の版をレイヤーに入れ、Lambda の束ねでは `external` にする。
 
 - `lib/layers/dependencies-layer.ts`：`DependenciesLayer` コンストラクト。`.layer`（`lambda.LayerVersion`）と `.externals`（`src/functions/package.json` の `dependencies` のキー）を持つ。
 - `lib/layers/local-bundler.ts`・`lib/layers/bundle.sh`：手元で `npm ci --omit=dev --cpu=arm64 --os=linux` を `<出力>/nodejs/` に流す。手元で失敗したら `linux/arm64` の Docker に切り替わる。
@@ -136,6 +136,6 @@ Discord には ALARM のとき「🔴 障害発生」、OK のとき「🟢 復�
 
 1. `src/functions/package.json` に依存を足し、`package-lock.json` を作る（`npm install --prefix src/functions`）。
 2. スタックで `new DependenciesLayer(this, 'Dependencies', { sourceDir: 'src/functions', layerVersionName })` を作る。
-3. Lambda の `layers` に `.layer` を入れ、`TypeScriptCode` の `buildOptions.external` に `.externals` を渡す（`@aws-sdk/*` は `external` に入れず、Lambda に束ねる。ランタイム同梱の SDK は最新と限らないため）。
+3. Lambda の `layers` に `.layer` を入れ、`TypeScriptCode` の `buildOptions.external` に `.externals` を渡す（SDK もここに入る）。
 
-**未確認**：ESM の Lambda が、レイヤーの `/opt/nodejs/node_modules` にある依存を素の名前で import できるか。Node の ESM は `NODE_PATH` を見ない。api は自前の `register-node-path.js` で回避している。マネージドランタイムのハンドラーで要るかどうかは確かめていない。初めてレイヤーを使うときに実物で確かめ、要るなら回避策をこの仕組みに足す。
+**未確認**：ESM の Lambda が、レイヤーの `/opt/nodejs/node_modules` にある依存を素の名前で import できるか。Node の ESM は `NODE_PATH` を見ない。api は自前の `register-node-path.js` で回避している。マネージドランタイムのハンドラーで要るかどうかは確かめていない。初回のデプロイで実物で確かめ、要るなら回避策をこの仕組みに足す。
