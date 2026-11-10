@@ -117,7 +117,7 @@ aws-vault exec administrator -- aws cloudwatch set-alarm-state \
   --alarm-name <アラーム名> --state-value OK --state-reason テスト
 ```
 
-Discord には ALARM のとき「🔴 障害発生」、OK のとき「🟢 復旧」が 1 通ずつ届く。本文にアラームの説明（`AlarmDescription`。無ければアラーム名）、フィールドに アラーム・理由・時刻（JST）が並ぶ。`INSUFFICIENT_DATA` は送らない。
+Discord には ALARM のとき「🔴 障害発生」、OK のとき「🟢 復旧」が 1 通ずつ届く。本文にアラームの説明（`AlarmDescription`。無ければアラーム名）、フィールドに アラーム・理由・時刻（JST）が並ぶ。`INSUFFICIENT_DATA` は送らない。アラームを作った直後の `INSUFFICIENT_DATA` から OK への変化も、障害から直ったのではないので送らない（「復旧」は ALARM から OK に戻ったときだけ）。
 
 ### 届かないとき
 
