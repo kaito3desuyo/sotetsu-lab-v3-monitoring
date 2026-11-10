@@ -54,6 +54,8 @@ export function toDiscordPayload(snsMessage: string): DiscordPayload | null {
   const alarm = parsed as Record<string, unknown>;
   const state = alarm.NewStateValue;
   if (state !== 'ALARM' && state !== 'OK') return null;
+  // アラームを作った直後は INSUFFICIENT_DATA から OK に変わる。障害から直ったのではないので送らない
+  if (state === 'OK' && alarm.OldStateValue === 'INSUFFICIENT_DATA') return null;
 
   const alarmName = String(alarm.AlarmName ?? '');
   const fields: { name: string; value: string }[] = [

@@ -23,11 +23,23 @@ describe('toDiscordPayload', () => {
     expect(e.description).toBe('API の 5xx が出ている');
   });
 
-  it('OK は緑の Embed で「復旧」と出す', () => {
-    const e = toDiscordPayload(msg({ NewStateValue: 'OK' }))!.embeds![0];
+  it('ALARM から OK は緑の Embed で「復旧」と出す', () => {
+    const e = toDiscordPayload(msg({ OldStateValue: 'ALARM', NewStateValue: 'OK' }))!.embeds![0];
     expect(e.title).toBe('🟢 復旧');
     expect(e.color).toBe(0x2ecc71);
     expect(e.description).toBe('API の 5xx が出ている');
+  });
+
+  it('INSUFFICIENT_DATA から OK は送らない（作った直後で、障害から直ったのではない）', () => {
+    expect(
+      toDiscordPayload(msg({ OldStateValue: 'INSUFFICIENT_DATA', NewStateValue: 'OK' })),
+    ).toBeNull();
+  });
+
+  it('INSUFFICIENT_DATA から ALARM は送る', () => {
+    const e = toDiscordPayload(msg({ OldStateValue: 'INSUFFICIENT_DATA', NewStateValue: 'ALARM' }))!
+      .embeds![0];
+    expect(e.title).toBe('🔴 障害発生');
   });
 
   it('アラーム名をフィールドに出す', () => {

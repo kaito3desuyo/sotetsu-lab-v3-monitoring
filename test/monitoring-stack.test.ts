@@ -29,6 +29,7 @@ describe('MonitoringStack', () => {
       FunctionName: 'sotetsu-lab-v3-prod-monitoring-discord-notifier-lambda',
       Runtime: 'nodejs24.x',
       Architectures: ['arm64'],
+      MemorySize: 256,
       Environment: {
         Variables: {
           WEBHOOK_URL_PARAMETER_NAME: 'sotetsu-lab-v3-prod-monitoring-discord-webhook-url',
