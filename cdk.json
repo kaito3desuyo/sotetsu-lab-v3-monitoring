@@ -1,5 +1,5 @@
 {
-  "app": "npx tsc && npx tsx bin/sotetsu-lab-v3-monitoring.ts",
+  "app": "npx tsc && npx tsx bin/monitoring.ts",
   "watch": {
     "include": [
       "**"
