@@ -87,6 +87,21 @@ Discord のチャンネル
   - `STAGE` が無いとき、または知らない値のときは、synth の時点で落とす。
   - Webhook URL は `.env` にも入れない。SSM SecureString に置き、`.env` には名前も書かない（名前はコードに書く）。
   - 今は本番しか見張らないので、`.env.prod` だけを用意する。
+- **フォルダ構造**（2026-11-10 ユーザー承認）。`cdk init app --language typescript` を土台にし、Lambda の置き場は backend にそろえて `src/functions/<名前>/` にする。
+
+  ```
+  bin/monitoring.ts            入口。-c STAGE を読み .env.<stage> を dotenv で読み、設定を組んでスタックを作る
+  lib/config.ts                stage の設定の型と検証（STAGE が無い・知らない値なら落とす）
+  lib/monitoring-stack.ts      SNS トピック・転送 Lambda・購読・SSM パラメータ（ARN）
+  src/functions/discord-notifier/handler.ts  SNS のイベントを受けて Discord に送る
+  src/functions/discord-notifier/format.ts   アラームの JSON を文面にする（副作用なし）
+  test/monitoring-stack.test.ts              テンプレートの中身を確かめる
+  test/functions/discord-notifier/format.test.ts
+  docs/adr/・docs/superpowers/{specs,plans}/
+  cdk.json（app は tsx）・package.json（"type": "module"）・tsconfig.json・vitest.config.ts・.env.example・README.md
+  ```
+
+  - テンプレートからの違いは 2 つ。`ts-node` を `tsx` に、jest を Vitest に替える（ESM のため。api も Vitest）。
 - デプロイは手元から `cdk deploy` で行う（aws-vault）。CI は作らない。
 - `cdk bootstrap`（ap-northeast-1）が一度要る。
 - 最初の ADR に「Terraform でなく CDK を選んだ理由」と「アラームはアプリ側に置く理由」を書く。
