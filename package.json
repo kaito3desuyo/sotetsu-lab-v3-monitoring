@@ -12,7 +12,6 @@
     "deploy:prod": "cdk deploy -c STAGE=prod"
   },
   "devDependencies": {
-    "@aws-sdk/client-ssm": "^3.1165.0",
     "@types/aws-lambda": "^8.10.164",
     "@types/node": "^24.10.1",
     "aws-cdk": "2.1148.0",
@@ -22,6 +21,7 @@
     "vitest": "^5.1.0"
   },
   "dependencies": {
+    "@aws-sdk/client-ssm": "^3.1165.0",
     "@mrgrain/cdk-esbuild": "^5.8.5",
     "aws-cdk-lib": "^2.275.0",
     "constructs": "^10.5.0",

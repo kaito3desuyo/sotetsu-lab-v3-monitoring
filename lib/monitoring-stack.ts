@@ -41,8 +41,11 @@ export class MonitoringStack extends Stack {
           format: 'esm',
           platform: 'node',
           target: 'node24',
-          external: ['@aws-sdk/*'],
           outfile: 'index.mjs',
+          // 束ねた SDK 配下の CJS が実行時に require する（node:http など）ため、ESM に require を用意する
+          banner: {
+            js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+          },
         },
       }),
       timeout: Duration.seconds(10),
