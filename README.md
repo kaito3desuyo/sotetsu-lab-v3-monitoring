@@ -127,15 +127,15 @@ Discord には ALARM のとき「🔴 障害発生」、OK のとき「🟢 復�
 
 本番のスタックは、転送 Lambda が使う AWS SDK（`@aws-sdk/client-ssm`）をこのレイヤーで渡している。ランタイム同梱の SDK は最新と限らないため、自前の版をレイヤーに入れ、Lambda の束ねでは `external` にする。
 
-- `lib/layers/dependencies-layer.ts`：`DependenciesLayer` コンストラクト。`.layer`（`lambda.LayerVersion`）と `.externals`（`src/functions/package.json` の `dependencies` のキー）を持つ。
+- `lib/layers/dependencies-layer.ts`：`DependenciesLayer` コンストラクト。`.layer`（`lambda.LayerVersion`）と `.externals`（ルート `package.json` の `dependencies` のキー）を持つ。
 - `lib/layers/local-bundler.ts`・`lib/layers/bundle.sh`：手元で `npm ci --omit=dev --cpu=arm64 --os=linux` を `<出力>/nodejs/` に流す。手元で失敗したら `linux/arm64` の Docker に切り替わる。
-- レイヤーに入れる依存は `src/functions/package.json` の `dependencies` に書く（ルートの `package.json` は CDK と開発用）。
-- アセットのハッシュは `package.json` と `package-lock.json` だけから取る。同じディレクトリの Lambda のコードを直してもレイヤーは作り直されない。
+- 依存はすべてリポ直下の `package.json` で管理する。`dependencies` はレイヤーに入るものだけ（今は `@aws-sdk/client-ssm`）。CDK・テスト・型などの開発用は `devDependencies` に置く（`npm ci --omit=dev` なのでレイヤーには入らない）。
+- アセットのハッシュは `package.json` と `package-lock.json` だけから取る。コードや docs を直してもレイヤーは作り直されない。
 
 使うとき：
 
-1. `src/functions/package.json` に依存を足し、`package-lock.json` を作る（`npm install --prefix src/functions`）。
-2. スタックで `new DependenciesLayer(this, 'Dependencies', { sourceDir: 'src/functions', layerVersionName })` を作る。
+1. リポ直下で `npm install <pkg>` する（`dependencies` に入り、`package-lock.json` も更新される）。`.externals` に自動で入る。
+2. スタックで `new DependenciesLayer(this, 'Dependencies', { sourceDir: リポ直下, layerVersionName })` を作る。
 3. Lambda の `layers` に `.layer` を入れ、`TypeScriptCode` の `buildOptions.external` に `.externals` を渡す（SDK もここに入る）。
 
 **未確認**：ESM の Lambda が、レイヤーの `/opt/nodejs/node_modules` にある依存を素の名前で import できるか。Node の ESM は `NODE_PATH` を見ない。api は自前の `register-node-path.js` で回避している。マネージドランタイムのハンドラーで要るかどうかは確かめていない。初回のデプロイで実物で確かめ、要るなら回避策をこの仕組みに足す。

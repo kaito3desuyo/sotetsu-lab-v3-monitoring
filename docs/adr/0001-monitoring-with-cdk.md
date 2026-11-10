@@ -45,12 +45,13 @@
 ### 6. Lambda レイヤーの仕組みを土台に入れる
 
 - ユーザーの希望（「絶対ラムダレイヤーの仕組みはあとでいる」）。以前の実装（Qiita「AWS CDKのILocalBundlingでLambda FunctionとLayerを構築する」ryo0301）を土台にし、次の 4 点を直した。
-  - ソースは `src/functions`。レイヤーの依存は `src/functions/package.json` に書く。
+  - ~~ソースは `src/functions`~~（撤回。下の「依存の置き場」参照）。
   - アーキテクチャは arm64 だけ。
   - `bundle.sh` は `set -euo pipefail`。
   - Node は 24。
 - さらに、アセットのハッシュを `package.json` と `package-lock.json` だけから取る（カスタムハッシュ）。同じディレクトリのコードを直してもレイヤーを作り直さない。
-- 本番のスタックはこのレイヤーを使う。転送 Lambda の SDK（`@aws-sdk/client-ssm`、`src/functions/package.json` の `dependencies`）をレイヤーで渡す。レイヤー名は `sotetsu-lab-v3-prod-monitoring-dependencies-layer`。
+- 依存の置き場（ユーザー決定 2026-11-10）：材料はリポ直下の `package.json`・`package-lock.json`。`dependencies` はレイヤーに入れるものだけ（今は `@aws-sdk/client-ssm`）、CDK・ツール類は `devDependencies`（`aws-cdk-lib`・`constructs`・`@mrgrain/cdk-esbuild`・`dotenv` ほか）。レイヤーは `npm ci --omit=dev` で作るので開発用は入らない。先の直し 1「材料を根っこでなく `src/functions` に」は撤回する。その懸念（CDK のパッケージがレイヤーに漏れる）は devDependencies で、コード修正のたびの作り直しはカスタムハッシュで足りる。以前の実装（根っこの `package.json` から `npm ci --omit=dev`）と同じ形。アセットの `exclude` は `.*`・`node_modules`・`cdk.out`。
+- 本番のスタックはこのレイヤーを使う。転送 Lambda の SDK（`@aws-sdk/client-ssm`、ルート `package.json` の `dependencies`）をレイヤーで渡す。レイヤー名は `sotetsu-lab-v3-prod-monitoring-dependencies-layer`。
 - 未確認：ESM の Lambda がレイヤーの依存を素の名前で import できるか。初回のデプロイで実物で確かめる。
 
 ### 7. そのほか

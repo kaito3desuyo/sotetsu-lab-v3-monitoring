@@ -79,8 +79,8 @@ Discord のチャンネル
 - **CDK アプリは ESM で動かす**（ユーザーの言葉）。`package.json` に `"type": "module"` を書き、`cdk.json` の `app` は TS を ESM のまま流せる道具（`tsx` など）で起動する。
 - **転送 Lambda も TypeScript で書き、`@mrgrain/cdk-esbuild` で束ねる**（ユーザーの言葉。以前の CDK でも使っていた）。`lambda.Function` の `code` に `TypeScriptCode` を渡し、`buildOptions` で ESM（`format: 'esm'`）にする。2026-11-10 時点の最新は 5.8.5（2026-10-01 更新・peer は `aws-cdk-lib ^2.51.0`・`constructs ^10.5.0`、npm で確かめた）。ESM の出力とハンドラ名（`.mjs` にするか、`package.json` の `type` で済ませるか）の組み方は builder に任せる。CDK 付属の `NodejsFunction` は使わない。
 - **Lambda レイヤーの仕組みを土台に入れる**（ユーザー「絶対ラムダレイヤーの仕組みはあとでいる」・2026-11-10）。やり方はユーザーが示した記事（Qiita「AWS CDKのILocalBundlingでLambda FunctionとLayerを構築する」ryo0301・2022-12・2024-05 更新）に従う。
-  - レイヤーに入れる依存は `src/functions/package.json` の `dependencies` に書く（ルートの `package.json` は CDK と開発用の依存）。
-  - `lambda.LayerVersion` の `Code.fromAsset('src/functions', { bundling })` で作る。`bundling.local` に `ILocalBundling` を実装したクラスを渡し、`bundle.sh` で `package.json`・`package-lock.json` を `<outputDir>/nodejs/` に写して `npm ci --omit=dev --prefix` する。手元で失敗したら、`image`（ランタイムの `bundlingImage`）と `command` で Docker に任せる。
+  - レイヤーに入れる依存はリポ直下の `package.json` の `dependencies` に書く（CDK・開発用は `devDependencies`。`npm ci --omit=dev` でレイヤーに入らない）。※2026-11-10 ユーザー決定で変更。当初は `src/functions/package.json` に置く案だったが、依存の管理を根っこに一本化した。
+  - `lambda.LayerVersion` の `Code.fromAsset(<リポ直下>, { exclude: ['.*', 'node_modules', 'cdk.out'], bundling })` で作る。`bundling.local` に `ILocalBundling` を実装したクラスを渡し、`bundle.sh` で `package.json`・`package-lock.json` を `<outputDir>/nodejs/` に写して `npm ci --omit=dev --prefix` する。手元で失敗したら、`image`（ランタイムの `bundlingImage`）と `command` で Docker に任せる。
   - アップロードは CDK のアセットの仕組みに任せる。自前のアップロード用スクリプトは作らない。
   - Lambda 側では、レイヤーにある依存を束ねない。記事の `NodejsFunction` の `externalModules` の代わりに、`cdk-esbuild` の `buildOptions.external` に `src/functions/package.json` の `dependencies` のキーを渡す。
   - 転送 Lambda は依存ゼロのまま。だから、本番のスタックにレイヤーを置くのは、依存を持つ Lambda が初めて来たときにする。今回は仕組み（コンストラクト・`bundle.sh`）と、そのテスト（テンプレートに `AWS::Lambda::LayerVersion` が出ること、`bundle.sh` が `nodejs/node_modules` を作ること）だけを入れる（私の判断）。
@@ -98,10 +98,9 @@ Discord のチャンネル
   bin/monitoring.ts            入口。-c STAGE を読み .env.<stage> を dotenv で読み、設定を組んでスタックを作る
   lib/config.ts                stage の設定の型と検証（STAGE が無い・知らない値なら落とす）
   lib/monitoring-stack.ts      SNS トピック・転送 Lambda・購読・SSM パラメータ（ARN）
-  lib/layers/dependencies-layer.ts  src/functions/package.json からレイヤーを作るコンストラクト
+  lib/layers/dependencies-layer.ts  ルートの package.json からレイヤーを作るコンストラクト
   lib/layers/local-bundler.ts       ILocalBundling の実装（bundle.sh を呼ぶ・失敗なら Docker へ）
   lib/layers/bundle.sh              <outputDir>/nodejs に npm ci --omit=dev
-  src/functions/package.json   レイヤーに入れる依存（今は空）
   src/functions/discord-notifier/handler.ts  SNS のイベントを受けて Discord に送る
   src/functions/discord-notifier/format.ts   アラームの JSON を文面にする（副作用なし）
   test/monitoring-stack.test.ts              テンプレートの中身を確かめる

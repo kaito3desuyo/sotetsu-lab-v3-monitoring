@@ -52,7 +52,7 @@
 
 - [ ] **Step 1: 土台のファイルを作る**
   - `cdk init app --language typescript` の構成を手で起こす（`cdk init` は空でないディレクトリで動かないため）。`bin/`・`lib/`・`test/`。
-  - 依存: `aws-cdk-lib`・`constructs`・`@mrgrain/cdk-esbuild`・`dotenv`・`@aws-sdk/client-ssm`（2026-11-10 ユーザー決定: レイヤーで渡す。ランタイム同梱の SDK は最新と限らない。ルートの `devDependencies` に型・テスト用で置き、`src/functions/package.json` の `dependencies` にも同じ範囲で入れる）。devDependencies: `aws-cdk`（CLI）・`typescript`・`tsx`・`vitest`・`esbuild`・`@types/node`・`@types/aws-lambda`。版は入れた時点の最新。Node の版はほかのリポにそろえて `mise.toml` を置く。
+  - 依存: `aws-cdk-lib`・`constructs`・`@mrgrain/cdk-esbuild`・`dotenv`・`@aws-sdk/client-ssm`（2026-11-10 ユーザー決定: レイヤーで渡す。ランタイム同梱の SDK は最新と限らない。※2026-11-10 変更: 依存はすべてルートの `package.json` で管理し、`dependencies` は `@aws-sdk/client-ssm` だけ（レイヤーに入る）、`aws-cdk-lib`・`constructs`・`@mrgrain/cdk-esbuild`・`dotenv` は `devDependencies`）。devDependencies: `aws-cdk`（CLI）・`typescript`・`tsx`・`vitest`・`esbuild`・`@types/node`・`@types/aws-lambda`。版は入れた時点の最新。Node の版はほかのリポにそろえて `mise.toml` を置く。
   - `cdk.json` の `app` は `npx tsx bin/monitoring.ts`。
   - `.gitignore` に `node_modules`・`cdk.out`・`.env`・`.env.*`・`!.env.example`。
   - `.env.example` の鍵: `ACCOUNT_ID`・`REGION`。`.env.prod` は手元で `ACCOUNT_ID=442730633672`・`REGION=ap-northeast-1` を入れて作る（git に入れない）。
@@ -163,12 +163,12 @@
 ### Task 5: Lambda レイヤーの仕組み
 
 **Files:**
-- Create: `lib/layers/dependencies-layer.ts`, `lib/layers/local-bundler.ts`, `lib/layers/bundle.sh`（実行権限つき）, `src/functions/package.json`（`dependencies: {}`）, `src/functions/package-lock.json`
+- Create: `lib/layers/dependencies-layer.ts`, `lib/layers/local-bundler.ts`, `lib/layers/bundle.sh`（実行権限つき）, （※2026-11-10 変更: `src/functions/package.json`・`package-lock.json` は作らず、ルートの `package.json`・`package-lock.json` を使う）
 - Test: `test/layers/dependencies-layer.test.ts`, `test/layers/bundle.test.ts`, `test/layers/fixture/package.json`・`package-lock.json`（依存 1 つ。小さく依存の無いもの。例 `ms`）
 
 **Interfaces:**
 **土台:** ユーザーが以前の CDK で書いた `LocalBundler`・`bundle.sh`・`#buildLayer()`（2026-11-10 にチャットで共有。下の Interfaces に写した）。直すのは 4 つ（2026-11-10 ユーザー承認）。
-1. 材料をリポの根っこでなく `src/functions/` にする。根っこの `dependencies`（`aws-cdk-lib` など）がレイヤーに入らないように。ハッシュも、Lambda のコードや docs を直しただけで変わらないように。
+1. ~~材料をリポの根っこでなく `src/functions/` にする。~~（2026-11-10 撤回: 材料はルートの `package.json`。CDK のパッケージは `devDependencies` に置いてレイヤーに入れない。ハッシュはカスタムで package.json・lock だけから取る。）根っこの `dependencies`（`aws-cdk-lib` など）がレイヤーに入らないように。ハッシュも、Lambda のコードや docs を直しただけで変わらないように。
 2. `compatibleArchitectures` は `ARM_64` だけにする。手元の組み立ては arm64 向けに入れる（`npm ci` に `--cpu=arm64 --os=linux`）。Docker 側は `platform: 'linux/arm64'`。
 3. `bundle.sh` の先頭に `#!/usr/bin/env bash` と `set -euo pipefail`。途中の失敗で欠けたレイヤーを成功扱いにしない。
 4. ランタイムは `NODEJS_24_X`。
@@ -176,7 +176,7 @@
 **Interfaces:**
 - Produces:
   - `class DependenciesLayer extends Construct { readonly layer: lambda.LayerVersion; readonly externals: string[]; constructor(scope: Construct, id: string, props: { sourceDir: string; layerVersionName: string }) }`
-    - `externals` は `sourceDir/package.json` の `dependencies` のキー。依存を持つ Lambda は `buildOptions.external` に `layer.externals`（SDK もレイヤーで渡すので external に含まれる）を渡し、`layers: [layer.layer]` を付ける。
+    - `externals` は `sourceDir/package.json`（リポ直下）の `dependencies` のキー。依存を持つ Lambda は `buildOptions.external` に `layer.externals`（SDK もレイヤーで渡すので external に含まれる）を渡し、`layers: [layer.layer]` を付ける。
     - `LayerVersion` の中身はユーザーの `#buildLayer()` と同じ形。`compatibleRuntimes: [Runtime.NODEJS_24_X]`・`compatibleArchitectures: [Architecture.ARM_64]`・`removalPolicy: RemovalPolicy.DESTROY`・`code: Code.fromAsset(sourceDir, { exclude: ['.*', 'node_modules'], bundling: { local: new LocalBundler(sourceDir), image: Runtime.NODEJS_24_X.bundlingImage, platform: 'linux/arm64', user: 'root', command: ['bash', '-c', 'mkdir -p /asset-output/nodejs && cp package.json package-lock.json /asset-output/nodejs/ && npm ci --omit=dev --prefix /asset-output/nodejs'] } })`。
   - `class LocalBundler implements ILocalBundling { constructor(private readonly rootDir: string) }` — ユーザーのコードのまま（`execFileSync(resolve(import.meta.dirname, 'bundle.sh'), { env: { ...process.env, BUNDLER_OUTPUT_DIR, BUNDLER_ROOT_DIR }, timeout: 60 秒, encoding: 'utf-8' })`、失敗したら `console.error` して `false`）。
   - `bundle.sh` — ユーザーのスクリプト（`BUNDLER_OUTPUT_DIR`・`BUNDLER_ROOT_DIR` の確かめ → `<出力>/nodejs` を作る → `cd` → `cp package.json package-lock.json` → `npm ci --omit=dev --prefix`）に、直し 2・3 を足す。
