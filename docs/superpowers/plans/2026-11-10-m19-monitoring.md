@@ -84,8 +84,10 @@
   - `function toDiscordPayload(snsMessage: string): DiscordPayload | null`
 
 - [ ] **Step 1: 落ちるテストを書く**。値は CloudWatch アラームの SNS の JSON（`AlarmName`・`AlarmDescription`・`NewStateValue`・`NewStateReason`・`StateChangeTime`・`Region`）の実物の形で作る。
-  - `ALARM は赤の Embed で「鳴った」と出す`: `NewStateValue: 'ALARM'`、`AlarmName: 'sotetsu-lab-v3-prod-api-url5xx'` → `embeds[0].title === '🔴 鳴った: sotetsu-lab-v3-prod-api-url5xx'`、`color === 0xe74c3c`、`description === AlarmDescription`。
-  - `OK は緑の Embed で「直った」と出す`: `title === '🟢 直った: …'`、`color === 0x2ecc71`。
+  - `ALARM は赤の Embed で「障害発生」と出す`（2026-11-10 にユーザー判断で文面を変更）: `NewStateValue: 'ALARM'`、`AlarmName: 'sotetsu-lab-v3-prod-api-url5xx'` → `embeds[0].title === '🔴 障害発生'`、`color === 0xe74c3c`、`description === AlarmDescription`。
+  - `OK は緑の Embed で「復旧」と出す`: `title === '🟢 復旧'`、`color === 0x2ecc71`、`description` は同じ。
+  - `アラーム名をフィールドに出す`: `fields` に `{ name: 'アラーム', value: AlarmName }`。順は アラーム・理由・時刻。
+  - `AlarmDescription が無い・空ならアラーム名を説明にする`。
   - `時刻は JST で出す`: `StateChangeTime: '2026-10-14T08:00:00.000+0000'` → `fields` に `{ name: '時刻', value: '2026-10-14 17:00' }`。
   - `理由を出す`: `fields` に `{ name: '理由', value: NewStateReason }`。
   - `理由は 1024 字に切る`: 2000 字の理由 → value の長さが 1024 以下。
