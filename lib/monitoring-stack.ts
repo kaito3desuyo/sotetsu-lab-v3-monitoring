@@ -55,7 +55,7 @@ export class MonitoringStack extends Stack {
         },
       }),
       timeout: Duration.seconds(10),
-      memorySize: 128,
+      memorySize: 256,
       logGroup,
       environment: {
         WEBHOOK_URL_PARAMETER_NAME: names.webhookUrlParameter,
