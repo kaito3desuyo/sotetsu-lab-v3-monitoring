@@ -42,10 +42,10 @@ stage は `-c STAGE=prod` で選ぶ。`bin/monitoring.ts` が `.env.prod` を読
 
 ## 初回だけ：bootstrap
 
-ap-northeast-1 で一度だけ要る。
+ap-northeast-1 で一度だけ要る。bootstrap もアプリを synth するので、`-c STAGE=prod` が要る。
 
 ```
-aws-vault exec administrator -- npx cdk bootstrap aws://442730633672/ap-northeast-1
+aws-vault exec administrator -- npx cdk bootstrap aws://442730633672/ap-northeast-1 -c STAGE=prod
 ```
 
 ## Webhook URL を入れる

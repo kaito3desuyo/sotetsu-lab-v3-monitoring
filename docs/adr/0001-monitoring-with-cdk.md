@@ -52,7 +52,7 @@
 - さらに、アセットのハッシュを `package.json` と `package-lock.json` だけから取る（カスタムハッシュ）。同じディレクトリのコードを直してもレイヤーを作り直さない。
 - 依存の置き場（ユーザー決定 2026-11-10）：材料はリポ直下の `package.json`・`package-lock.json`。`dependencies` はレイヤーに入れるものだけ（今は `@aws-sdk/client-ssm`）、CDK・ツール類は `devDependencies`（`aws-cdk-lib`・`constructs`・`@mrgrain/cdk-esbuild`・`dotenv` ほか）。レイヤーは `npm ci --omit=dev` で作るので開発用は入らない。先の直し 1「材料を根っこでなく `src/functions` に」は撤回する。その懸念（CDK のパッケージがレイヤーに漏れる）は devDependencies で、コード修正のたびの作り直しはカスタムハッシュで足りる。以前の実装（根っこの `package.json` から `npm ci --omit=dev`）と同じ形。アセットの `exclude` は `.*`・`node_modules`・`cdk.out`。
 - 本番のスタックはこのレイヤーを使う。転送 Lambda の SDK（`@aws-sdk/client-ssm`、ルート `package.json` の `dependencies`）をレイヤーで渡す。レイヤー名は `sotetsu-lab-v3-prod-monitoring-dependencies-layer`。
-- 未確認：ESM の Lambda がレイヤーの依存を素の名前で import できるか。初回のデプロイで実物で確かめる。
+- 確認済み（2026-11-10 初回デプロイ）：ESM の Lambda（`index.mjs`）は、レイヤーの `/opt/nodejs/node_modules` にある `@aws-sdk/client-ssm` を素の名前で import できた。`sns publish` の試験で INIT と実行がエラーなく終わり、SecureString の復号も `ssm:GetParameter` だけで通った（Duration 約 3.2 秒・最大メモリ 108/128 MB）。
 
 ### 7. そのほか
 
@@ -72,4 +72,4 @@
 
 - 良い点：アラームが関数の隣にある。monitoring の作り直しがアプリの import に縛られない。stage ごとの値とデプロイの決まりを GitHub の environment で分けられる。
 - 悪い点：デプロイの順番を守る必要がある。転送 Lambda の故障には気づけない。アラームを作る関数が 4 リポに複製される。
-- 残る確認：ESM の Lambda からレイヤーの依存を素の名前で import できるか（上の 6）。初回のデプロイで確かめる。
+- 残る確認だった「ESM の Lambda からレイヤーの依存を import できるか」（上の 6）は、初回のデプロイで確かめた。
