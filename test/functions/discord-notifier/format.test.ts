@@ -16,17 +16,33 @@ function msg(over: Record<string, unknown> = {}): string {
 }
 
 describe('toDiscordPayload', () => {
-  it('ALARM は赤の Embed で「鳴った」と出す', () => {
+  it('ALARM は赤の Embed で「障害発生」と出す', () => {
     const e = toDiscordPayload(msg())!.embeds![0];
-    expect(e.title).toBe(`🔴 鳴った: ${name}`);
+    expect(e.title).toBe('🔴 障害発生');
     expect(e.color).toBe(0xe74c3c);
     expect(e.description).toBe('API の 5xx が出ている');
   });
 
-  it('OK は緑の Embed で「直った」と出す', () => {
+  it('OK は緑の Embed で「復旧」と出す', () => {
     const e = toDiscordPayload(msg({ NewStateValue: 'OK' }))!.embeds![0];
-    expect(e.title).toBe(`🟢 直った: ${name}`);
+    expect(e.title).toBe('🟢 復旧');
     expect(e.color).toBe(0x2ecc71);
+    expect(e.description).toBe('API の 5xx が出ている');
+  });
+
+  it('アラーム名をフィールドに出す', () => {
+    const e = toDiscordPayload(msg())!.embeds![0];
+    expect(e.fields).toContainEqual({ name: 'アラーム', value: name });
+  });
+
+  it('フィールドは アラーム・理由・時刻 の順', () => {
+    const e = toDiscordPayload(msg())!.embeds![0];
+    expect(e.fields.map((f) => f.name)).toEqual(['アラーム', '理由', '時刻']);
+  });
+
+  it('AlarmDescription が無い・空ならアラーム名を説明にする', () => {
+    expect(toDiscordPayload(msg({ AlarmDescription: undefined }))!.embeds![0].description).toBe(name);
+    expect(toDiscordPayload(msg({ AlarmDescription: '' }))!.embeds![0].description).toBe(name);
   });
 
   it('時刻は JST で出す', () => {

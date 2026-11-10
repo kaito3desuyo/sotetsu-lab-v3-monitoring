@@ -56,24 +56,29 @@ export function toDiscordPayload(snsMessage: string): DiscordPayload | null {
   if (state !== 'ALARM' && state !== 'OK') return null;
 
   const alarmName = String(alarm.AlarmName ?? '');
-  const fields: { name: string; value: string }[] = [];
+  const fields: { name: string; value: string }[] = [
+    { name: 'アラーム', value: truncate(alarmName, FIELD_LIMIT) },
+  ];
 
+  if (typeof alarm.NewStateReason === 'string' && alarm.NewStateReason) {
+    fields.push({ name: '理由', value: truncate(alarm.NewStateReason, FIELD_LIMIT) });
+  }
   if (typeof alarm.StateChangeTime === 'string') {
     const jst = formatJst(alarm.StateChangeTime);
     if (jst) fields.push({ name: '時刻', value: jst });
   }
-  if (typeof alarm.NewStateReason === 'string' && alarm.NewStateReason) {
-    fields.push({ name: '理由', value: truncate(alarm.NewStateReason, FIELD_LIMIT) });
-  }
+
+  const description =
+    typeof alarm.AlarmDescription === 'string' && alarm.AlarmDescription
+      ? alarm.AlarmDescription
+      : alarmName;
 
   const embed: DiscordEmbed = {
-    title: truncate(`${state === 'ALARM' ? '🔴 鳴った' : '🟢 直った'}: ${alarmName}`, 256),
+    title: state === 'ALARM' ? '🔴 障害発生' : '🟢 復旧',
+    description: truncate(description, DESCRIPTION_LIMIT),
     color: state === 'ALARM' ? RED : GREEN,
     fields,
     url: `https://${CONSOLE_REGION}.console.aws.amazon.com/cloudwatch/home?region=${CONSOLE_REGION}#alarmsV2:alarm/${encodeURIComponent(alarmName)}`,
   };
-  if (typeof alarm.AlarmDescription === 'string' && alarm.AlarmDescription) {
-    embed.description = truncate(alarm.AlarmDescription, DESCRIPTION_LIMIT);
-  }
   return { embeds: [embed] };
 }
