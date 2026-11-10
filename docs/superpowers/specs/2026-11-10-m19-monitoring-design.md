@@ -80,11 +80,13 @@ Discord のチャンネル
 - **CDK アプリは ESM で動かす**（ユーザーの言葉）。`package.json` に `"type": "module"` を書き、`cdk.json` の `app` は TS を ESM のまま流せる道具（`tsx` など）で起動する。
 - **転送 Lambda も TypeScript で書く**（ユーザーの言葉）。`aws-cdk-lib/aws-lambda-nodejs` の `NodejsFunction` を使う。CDK に付いてくる部品で、esbuild で束ねてくれる。`bundling.format: OutputFormat.ESM` を指定すると `index.mjs` で出る。esbuild を devDependencies に入れておけば、Docker を使わず手元で束ねる（CDK の README で確かめた）。
 - **Lambda レイヤーは作らない**（私の判断）。転送 Lambda は Node.js 標準の `fetch` だけで書け、外の依存が無い。依存が増えても `NodejsFunction` が束ねる。ユーザーが以前に使っていた「レイヤーを作ってアップロードするスクリプト」は、ここでは要らない。
-- **stage の切り替えは、環境変数や dotenv でなくコードに書く**（私の判断・CDK の公式の best practices「Model all production stages in code」「Configure with properties, not environment variables」に従う）。
-  - stage ごとの値は TS の設定オブジェクトに書き、スタックは props で受ける。stage ごとにスタックを 1 つ作る。
-  - 秘密の値（Webhook URL）だけは SSM に置き、コードには名前だけを書く。
-  - 今は本番しか見張らないので、作るスタックは本番の 1 つだけ。dev が要るようになったら、`bin/` にスタックを 1 行足す。
-  - どの commit からも同じテンプレートが出るので、スナップショットのテストが効く。
+- **stage の切り替えは、ほかのリポと同じ形にする**（ユーザー決定・2026-11-10）。
+  - context の `STAGE`（`cdk deploy -c STAGE=prod`）で stage を選び、dotenv で `.env.<stage>` を読む。
+  - `.env.*` は git に入れない。CI では GitHub の environment の Secrets から書き出す（backend の `deploy-on-push-version-tags.yml` の形）。こうすると、stage ごとの値と、デプロイの決まり（誰がいつ流せるか）を、GitHub の environment ごとに分けて持てる。値をコードに書く形（CDK 公式の推し）は、ここで合わなかった。
+  - 環境変数を読むのは `bin/` の入口だけにする。スタックとコンストラクトは props で値を受け、`process.env` を読まない（CDK の best practices「Configure with properties, not environment variables」の、入口で読むのは許される範囲）。
+  - `STAGE` が無いとき、または知らない値のときは、synth の時点で落とす。
+  - Webhook URL は `.env` にも入れない。SSM SecureString に置き、`.env` には名前も書かない（名前はコードに書く）。
+  - 今は本番しか見張らないので、`.env.prod` だけを用意する。
 - デプロイは手元から `cdk deploy` で行う（aws-vault）。CI は作らない。
 - `cdk bootstrap`（ap-northeast-1）が一度要る。
 - 最初の ADR に「Terraform でなく CDK を選んだ理由」と「アラームはアプリ側に置く理由」を書く。
