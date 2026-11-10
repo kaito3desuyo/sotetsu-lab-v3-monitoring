@@ -136,6 +136,6 @@ Discord には ALARM のとき「🔴 障害発生」、OK のとき「🟢 復�
 
 1. `src/functions/package.json` に依存を足し、`package-lock.json` を作る（`npm install --prefix src/functions`）。
 2. スタックで `new DependenciesLayer(this, 'Dependencies', { sourceDir: 'src/functions', layerVersionName })` を作る。
-3. Lambda の `layers` に `.layer` を入れ、`TypeScriptCode` の `buildOptions.external` に `.externals` を渡す（`@aws-sdk/*` が要るなら呼び側で足す）。
+3. Lambda の `layers` に `.layer` を入れ、`TypeScriptCode` の `buildOptions.external` に `.externals` を渡す（`@aws-sdk/*` は `external` に入れず、Lambda に束ねる。ランタイム同梱の SDK は最新と限らないため）。
 
 **未確認**：ESM の Lambda が、レイヤーの `/opt/nodejs/node_modules` にある依存を素の名前で import できるか。Node の ESM は `NODE_PATH` を見ない。api は自前の `register-node-path.js` で回避している。マネージドランタイムのハンドラーで要るかどうかは確かめていない。初めてレイヤーを使うときに実物で確かめ、要るなら回避策をこの仕組みに足す。
