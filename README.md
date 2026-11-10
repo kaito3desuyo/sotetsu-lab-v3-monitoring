@@ -2,7 +2,7 @@
 
 ロードマップ M19「障害の見張り」の共通部分を持つリポ。AWS CDK（TypeScript・ESM）で書く。
 
-本番の Lambda が壊れたとき、CloudWatch アラームから Discord に知らせる。アラーム本体は各アプリのリポ（api・backend・socket・client）の `serverless.ts` に置く。このリポが持つのは次の 3 つだけ。
+本番の Lambda が壊れたとき、CloudWatch アラームから Discord に知らせる。アラーム本体は各アプリのリポ（api・backend・socket・client）の `serverless.ts` に置く。このリポが持つのは次の 3 つと、その付属物（転送 Lambda のロググループ〔保持 30 日〕と Lambda の IAM ロール）だけ。
 
 - SNS トピック（`sotetsu-lab-v3-prod-monitoring-alarm-topic`）
 - Discord への転送 Lambda（`sotetsu-lab-v3-prod-monitoring-discord-notifier-lambda`）
@@ -70,6 +70,7 @@ URL をコード・テンプレート・`.env`・コミットに書かない。�
 | コマンド | 中身 |
 |---|---|
 | `npm test` | Vitest でテストを流す |
+| `npm run build` | 型だけ検査する（`tsc`。`tsconfig.json` が `noEmit`） |
 | `npm run synth:prod` | テンプレートを作る（手元だけ。AWS は触らない） |
 | `npm run diff:prod` | デプロイ済みとの差を見る |
 | `npm run deploy:prod` | デプロイする |
@@ -103,6 +104,8 @@ aws-vault exec administrator -- aws sns publish --topic-arn <トピックの ARN
 
 `<トピックの ARN>` は上の `ssm get-parameter` で取れる。
 
+`NewStateValue` の無い JSON（例 `--message '{"a":1}'`）は Discord に送られず、ログに 1 行残るだけ。手で試すときは上のようにプレーンテキストを使う。
+
 ### アラームの状態を手で変える
 
 各アプリのアラームを 1 本ずつ確かめるのに使う。
@@ -118,7 +121,7 @@ Discord には ALARM のとき「🔴 鳴った: <アラーム名>」、OK の�
 
 ### 届かないとき
 
-転送 Lambda のログ `/aws/lambda/sotetsu-lab-v3-prod-monitoring-discord-notifier-lambda` を見る。Discord への送信に失敗すると Lambda 自身がエラーで終わり、SNS が再送する。
+転送 Lambda のログ `/aws/lambda/sotetsu-lab-v3-prod-monitoring-discord-notifier-lambda` を見る。Discord への送信に失敗すると Lambda 自身がエラーで終わる。SNS は Lambda を非同期に呼ぶので、再試行は Lambda の非同期呼び出しの再試行（既定 2 回）で、それでも失敗したメッセージは捨てられる。
 
 ## Lambda レイヤーの仕組み
 
