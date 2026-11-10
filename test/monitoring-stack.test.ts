@@ -76,4 +76,11 @@ describe('MonitoringStack', () => {
     });
     expect(template.findResources('AWS::Logs::LogGroup')).not.toEqual({});
   });
+
+  it('ロググループは消すときに残さない', () => {
+    template.hasResource('AWS::Logs::LogGroup', {
+      DeletionPolicy: 'Delete',
+      UpdateReplacePolicy: 'Delete',
+    });
+  });
 });

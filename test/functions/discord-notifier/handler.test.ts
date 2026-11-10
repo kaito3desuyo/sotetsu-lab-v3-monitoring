@@ -58,4 +58,29 @@ describe('createHandler', () => {
     await handler(event('OK'));
     expect(getWebhookUrl).toHaveBeenCalledTimes(1);
   });
+
+  it('401・404 のときは次の実行で Webhook URL を読み直す', async () => {
+    const statuses = [404, 204];
+    const { getWebhookUrl, handler } = setup(() => {
+      const status = statuses.shift() ?? 204;
+      return status === 204 ? new Response(null, { status }) : new Response('Unknown Webhook', { status });
+    });
+    await expect(handler(event('ALARM'))).rejects.toThrow(/404/);
+    await handler(event('ALARM'));
+    expect(getWebhookUrl).toHaveBeenCalledTimes(2);
+  });
+
+  it('失敗時のログに本文を出し、URL は出さない', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { handler } = setup(() => new Response('x'.repeat(800), { status: 429 }));
+    const rejected = handler(event('ALARM'));
+    await expect(rejected).rejects.toThrow(/429/);
+    await rejected.catch((e: Error) => expect(e.message).not.toContain('discord.example'));
+    const logged = err.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(logged).toContain('429');
+    expect(logged).toContain('x'.repeat(500));
+    expect(logged).not.toContain('x'.repeat(501));
+    expect(logged).not.toContain('discord.example');
+    err.mockRestore();
+  });
 });

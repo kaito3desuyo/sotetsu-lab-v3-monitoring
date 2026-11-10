@@ -1,4 +1,4 @@
-import { Duration, Stack, StackProps, Tags } from 'aws-cdk-lib';
+import { Duration, RemovalPolicy, Stack, StackProps, Tags } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
@@ -28,6 +28,7 @@ export class MonitoringStack extends Stack {
     const logGroup = new logs.LogGroup(this, 'DiscordNotifierLogGroup', {
       logGroupName: names.discordNotifierLogGroup,
       retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
 
     const notifier = new lambda.Function(this, 'DiscordNotifier', {

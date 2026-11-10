@@ -24,6 +24,9 @@ export function createHandler(deps: HandlerDeps): (event: SNSEvent) => Promise<v
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.error(`Discord への送信に失敗した: status=${res.status} body=${text.slice(0, 500)}`);
+        if (res.status === 401 || res.status === 404) webhookUrl = undefined;
         throw new Error(`Discord への送信に失敗した: ${res.status}`);
       }
     }
