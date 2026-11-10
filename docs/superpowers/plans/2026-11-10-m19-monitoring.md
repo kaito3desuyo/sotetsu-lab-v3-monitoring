@@ -165,21 +165,40 @@
 - Test: `test/layers/dependencies-layer.test.ts`, `test/layers/bundle.test.ts`, `test/layers/fixture/package.json`・`package-lock.json`（依存 1 つ。小さく依存の無いもの。例 `ms`）
 
 **Interfaces:**
-- Produces:
-  - `class DependenciesLayer extends Construct { readonly layer: lambda.LayerVersion; readonly externals: string[]; constructor(scope, id, props: { sourceDir: string; runtime: lambda.Runtime; architecture: lambda.Architecture }) }` — `externals` は `sourceDir/package.json` の `dependencies` のキー。依存を持つ Lambda は `buildOptions.external` に `[...layer.externals, '@aws-sdk/*']` を渡し、`layers: [layer.layer]` を付ける。
-  - `class LocalBundler implements cdk.ILocalBundling { constructor(sourceDir: string) }` — `tryBundle(outputDir)` が `bundle.sh` を `BUNDLER_OUTPUT_DIR`・`BUNDLER_ROOT_DIR` を渡して呼び、失敗したら `false`（Docker に任せる）。
-  - `bundle.sh` — `mkdir -p "$BUNDLER_OUTPUT_DIR/nodejs"` → `package.json`・`package-lock.json` を写す → `npm ci --omit=dev --prefix "$BUNDLER_OUTPUT_DIR/nodejs"`。`set -euxo pipefail`。
+**土台:** ユーザーが以前の CDK で書いた `LocalBundler`・`bundle.sh`・`#buildLayer()`（2026-11-10 にチャットで共有。下の Interfaces に写した）。直すのは 4 つ（2026-11-10 ユーザー承認）。
+1. 材料をリポの根っこでなく `src/functions/` にする。根っこの `dependencies`（`aws-cdk-lib` など）がレイヤーに入らないように。ハッシュも、Lambda のコードや docs を直しただけで変わらないように。
+2. `compatibleArchitectures` は `ARM_64` だけにする。手元の組み立ては arm64 向けに入れる（`npm ci` に `--cpu=arm64 --os=linux`）。Docker 側は `platform: 'linux/arm64'`。
+3. `bundle.sh` の先頭に `#!/usr/bin/env bash` と `set -euo pipefail`。途中の失敗で欠けたレイヤーを成功扱いにしない。
+4. ランタイムは `NODEJS_24_X`。
 
-- [ ] **Step 1: 落ちるテストを書く**
+**Interfaces:**
+- Produces:
+  - `class DependenciesLayer extends Construct { readonly layer: lambda.LayerVersion; readonly externals: string[]; constructor(scope: Construct, id: string, props: { sourceDir: string; layerVersionName: string }) }`
+    - `externals` は `sourceDir/package.json` の `dependencies` のキー。依存を持つ Lambda は `buildOptions.external` に `[...layer.externals, '@aws-sdk/*']` を渡し、`layers: [layer.layer]` を付ける。
+    - `LayerVersion` の中身はユーザーの `#buildLayer()` と同じ形。`compatibleRuntimes: [Runtime.NODEJS_24_X]`・`compatibleArchitectures: [Architecture.ARM_64]`・`removalPolicy: RemovalPolicy.DESTROY`・`code: Code.fromAsset(sourceDir, { exclude: ['.*', 'node_modules'], bundling: { local: new LocalBundler(sourceDir), image: Runtime.NODEJS_24_X.bundlingImage, platform: 'linux/arm64', user: 'root', command: ['bash', '-c', 'mkdir -p /asset-output/nodejs && cp package.json package-lock.json /asset-output/nodejs/ && npm ci --omit=dev --prefix /asset-output/nodejs'] } })`。
+  - `class LocalBundler implements ILocalBundling { constructor(private readonly rootDir: string) }` — ユーザーのコードのまま（`execFileSync(resolve(import.meta.dirname, 'bundle.sh'), { env: { ...process.env, BUNDLER_OUTPUT_DIR, BUNDLER_ROOT_DIR }, timeout: 60 秒, encoding: 'utf-8' })`、失敗したら `console.error` して `false`）。
+  - `bundle.sh` — ユーザーのスクリプト（`BUNDLER_OUTPUT_DIR`・`BUNDLER_ROOT_DIR` の確かめ → `<出力>/nodejs` を作る → `cd` → `cp package.json package-lock.json` → `npm ci --omit=dev --prefix`）に、直し 2・3 を足す。
+
+- [ ] **Step 1: npm の `--cpu`・`--os` が `npm ci` で効くかを確かめる。** 手元の npm は 11.19.0。npm の公式文書（config の `cpu`・`os`）で確かめる。効かなければ、手元の組み立てをやめて常に Docker（`tryBundle` が `false` を返す）にする案に切り替え、ユーザーに伝える。
+
+- [ ] **Step 2: 落ちるテストを書く**
   - `bundle.sh が nodejs/node_modules を作る`: 一時ディレクトリを出力にして fixture で流す → `nodejs/node_modules/ms/package.json` がある。
+  - `bundle.sh は cp の失敗で止まる`: `package-lock.json` の無いディレクトリを `BUNDLER_ROOT_DIR` にする → 終了コードが 0 でない。
+  - `bundle.sh は BUNDLER_OUTPUT_DIR が無ければ止まる`: 終了コードが 0 でない。
   - `レイヤーをテンプレートに出す`: 空のスタックに fixture の `DependenciesLayer` を置く → `AWS::Lambda::LayerVersion` が 1 つ、`CompatibleRuntimes: ['nodejs24.x']`、`CompatibleArchitectures: ['arm64']`。
   - `externals は dependencies のキー`: fixture → `['ms']`。
 
-- [ ] **Step 2: 落ちることを確かめる** — FAIL
+- [ ] **Step 3: 落ちることを確かめる** — FAIL
 
-- [ ] **Step 3: 3 つを書く。** やり方は spec に引いた Qiita の記事（`Code.fromAsset(sourceDir, { bundling: { local, image: runtime.bundlingImage, command: [...], user: 'root' } })`）。Docker 側の `command` は `bundle.sh` と同じ 3 手を `/asset-output/nodejs` に向けて書く。
+- [ ] **Step 4: 3 つを書く。**
 
-- [ ] **Step 4: 通ることを確かめる** — PASS。`npm run synth:prod` のテンプレートに `AWS::Lambda::LayerVersion` が**無い**（本番のスタックにはまだ置かない）。
+- [ ] **Step 5: 通ることを確かめる** — PASS。`npm run synth:prod` のテンプレートに `AWS::Lambda::LayerVersion` が**無い**（本番のスタックにはまだ置かない）。
+
+- [ ] **Step 6: ESM から import できるかを実物で確かめる。** 使い捨てのスタック（`test/layers/esm-probe/`・本番のスタックとは別名）に、fixture のレイヤーと、`import ms from 'ms'` して結果を返すだけの ESM の Lambda（`external: ['ms']`）を置いてデプロイし、`aws lambda invoke` で呼ぶ。
+  - 通れば、README に「素の名前で import できる」と書く。
+  - `ERR_MODULE_NOT_FOUND` なら、回避策（`/opt/nodejs/node_modules` から読む仕掛け。api の `register-node-path.js` を参考にする）を仕組みに足すかをユーザーに聞く。
+  - どちらの場合も、確かめたら使い捨てのスタックは `cdk destroy` で消す。
+  - AWS への操作なので、Task 6 の MFA のあとで流してよい（順番を Task 6 の Step 5 の後ろに回す）。
 
 - [ ] **Step 5: コミット** — `feat: :sparkles: Lambda レイヤーを作る仕組みを足す`
 
