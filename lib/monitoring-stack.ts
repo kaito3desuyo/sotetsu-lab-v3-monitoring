@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { Duration, RemovalPolicy, Stack, StackProps, Tags } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -8,6 +9,7 @@ import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { TypeScriptCode } from '@mrgrain/cdk-esbuild';
 import { Construct } from 'constructs';
 import type { MonitoringConfig } from './config.js';
+import { DependenciesLayer } from './layers/dependencies-layer.js';
 
 export interface MonitoringStackProps extends StackProps {
   config: MonitoringConfig;
@@ -31,21 +33,25 @@ export class MonitoringStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
+    // AWS SDK はランタイム同梱が最新と限らないため、レイヤーで渡して external にする
+    const deps = new DependenciesLayer(this, 'Dependencies', {
+      sourceDir: join(import.meta.dirname, '..', 'src', 'functions'),
+      layerVersionName: names.dependenciesLayer,
+    });
+
     const notifier = new lambda.Function(this, 'DiscordNotifier', {
       functionName: names.discordNotifierFunction,
       runtime: lambda.Runtime.NODEJS_24_X,
       architecture: lambda.Architecture.ARM_64,
       handler: 'index.handler',
+      layers: [deps.layer],
       code: new TypeScriptCode('src/functions/discord-notifier/handler.ts', {
         buildOptions: {
           format: 'esm',
           platform: 'node',
           target: 'node24',
           outfile: 'index.mjs',
-          // 束ねた SDK 配下の CJS が実行時に require する（node:http など）ため、ESM に require を用意する
-          banner: {
-            js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
-          },
+          external: deps.externals,
         },
       }),
       timeout: Duration.seconds(10),

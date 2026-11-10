@@ -37,6 +37,21 @@ describe('MonitoringStack', () => {
     });
   });
 
+  it('SDK を渡すレイヤーを 1 つ作り、転送 Lambda が使う', () => {
+    template.resourceCountIs('AWS::Lambda::LayerVersion', 1);
+    template.hasResourceProperties('AWS::Lambda::LayerVersion', {
+      LayerName: 'sotetsu-lab-v3-prod-monitoring-dependencies-layer',
+      CompatibleRuntimes: ['nodejs24.x'],
+      CompatibleArchitectures: ['arm64'],
+    });
+    const layers = template.findResources('AWS::Lambda::LayerVersion');
+    const [layerId] = Object.keys(layers);
+    template.hasResourceProperties('AWS::Lambda::Function', {
+      FunctionName: 'sotetsu-lab-v3-prod-monitoring-discord-notifier-lambda',
+      Layers: [{ Ref: layerId }],
+    });
+  });
+
   it('トピックを Lambda が購読する', () => {
     template.hasResourceProperties('AWS::SNS::Subscription', { Protocol: 'lambda' });
   });

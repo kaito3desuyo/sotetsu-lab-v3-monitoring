@@ -14,7 +14,7 @@ export interface DependenciesLayerProps {
 
 export class DependenciesLayer extends Construct {
   readonly layer: lambda.LayerVersion;
-  /** 依存を持つ Lambda の buildOptions.external に渡す（'@aws-sdk/*' は external にしない。Lambda に束ねる） */
+  /** 依存を持つ Lambda の buildOptions.external に渡す（SDK もレイヤーで渡すので external に含まれる） */
   readonly externals: string[];
 
   constructor(scope: Construct, id: string, props: DependenciesLayerProps) {
