@@ -40,6 +40,7 @@
 - ユーザーの希望。以前の CDK でも使っていた。CDK 付属の `NodejsFunction` は使わない。
 - CDK アプリは ESM（`"type": "module"`）。`cdk.json` の `app` は `tsx` で起動する。テンプレートの `ts-node` と jest は、ESM のため `tsx` と Vitest に替えた。
 - 出力は `outfile: 'index.mjs'`、ハンドラは `index.handler`。`.mjs` にして ESM を明示する。
+- AWS SDK（`@aws-sdk/client-ssm`）は `dependencies` に入れて束ねる。ランタイムに同梱の SDK は、最新の版である保証が無いため（2026-11-10 ユーザー決定）。束ねた SDK の中には実行時の `require` が残るので、esbuild の `banner` で `createRequire` を差し込む。束ねた結果は約 1.5 MB。
 
 ### 6. Lambda レイヤーの仕組みを土台に入れる
 
